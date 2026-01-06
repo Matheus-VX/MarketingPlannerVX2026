@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marketing Planner 2026 - Cloud Sync</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+            background-color: #e2e8f0;
+            border: 1px solid #e2e8f0;
+        }
+
+        .calendar-day {
+            min-height: 120px;
+            background-color: white;
+            padding: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .calendar-day:hover {
+            background-color: #f8fafc;
+        }
+
+        .event-tag {
+            font-size: 0.62rem;
+            padding: 2px 4px;
+            border-radius: 4px;
+            margin: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 700;
+            transition: all 0.15s ease;
+            cursor: pointer;
+            border-left-width: 3px;
+            line-height: 1.2;
+            text-transform: uppercase;
+        }
+
+        .event-tag.completed {
+            opacity: 0.4;
+            text-decoration: line-through;
+            background-color: #f1f5f9 !important;
+            color: #94a3b8 !important;
+            border-left-color: #cbd5e1 !important;
+            box-shadow: none !important;
+        }
+
+        .campaign-indicator {
+            box-shadow: 0 0 0 2px var(--campaign-color, #ccc);
+            z-index: 1;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 6px;
+            background-color: #f1f5f9;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background-color: #22c55e;
+            transition: width 0.5s ease-in-out;
+        }
+
+        .filter-tag {
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid #e2e8f0;
+        }
+
+        .filter-tag.active {
+            background-color: #6366f1;
+            color: white;
+            border-color: #4f46e5;
+            box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.4);
+            z-index: 50;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal.active { display: flex; }
+
+        .check-btn {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            border: 1px solid currentColor;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 4px;
+            flex-shrink: 0;
+        }
+
+        .completed .check-btn {
+            background-color: #94a3b8;
+            border-color: #94a3b8;
+            color: white;
+        }
+
+        .overflow-y-auto::-webkit-scrollbar { width: 3px; }
+        .overflow-y-auto::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+
+        .tab-btn.active {
+            border-bottom: 2px solid #6366f1;
+            color: #6366f1;
+        }
+
+        .icon-option {
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 12px;
+            border: 2px solid #f1f5f9;
+            transition: all 0.2s;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon-option:hover { background-color: #f8fafc; }
+        .icon-option.selected { border-color: #6366f1; background-color: #eff6ff; color: #6366f1; }
+
+        .advanced-filter-select, .dash-filter-input {
+            background-color: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            outline: none;
+            cursor: pointer;
+            color: #64748b;
+        }
+
+        .view-section { display: none; }
+        .view-section.active { display: block; }
+
+        .dashboard-card {
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        #loadingOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loadingOverlay">
+    <div class="bg-indigo-600 p-4 rounded-3xl text-white animate-bounce mb-4">
+        <i class="fas fa-cloud-upload-alt fa-2x"></i>
+    </div>
+    <p class="text-xs font-black uppercase tracking-widest text-slate-400">Ligando ao Firebase...</p>
+</div>
+
+<div class="min-h-screen flex flex-col">
+    <!-- Cabeçalho Otimizado -->
+    <header class="bg-white border-b px-6 py-3 flex flex-row flex-wrap items-center justify-between gap-4 shadow-sm z-10">
+        <div class="flex items-center gap-3 shrink-0">
+            <div class="bg-indigo-600 p-2.5 rounded-xl text-white shadow-lg">
+                <i class="fas fa-rocket text-sm"></i>
+            </div>
+            <div class="hidden sm:block">
+                <h1 class="text-lg font-black text-slate-800 uppercase tracking-tighter leading-none">Marketing <span class="text-indigo-600">Planner</span></h1>
+                <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Gestão Estratégica 2026</p>
+            </div>
+        </div>
+
+        <div class="flex flex-row items-center gap-2 sm:gap-4 ml-auto">
+            <div class="flex bg-slate-100 p-1 rounded-xl shadow-inner whitespace-nowrap">
+                <button onclick="switchView('calendar')" id="btnViewCalendar" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition active bg-white text-indigo-600 shadow-sm">
+                    <i class="fas fa-calendar-alt mr-1"></i> <span class="hidden md:inline">Calendário</span>
+                </button>
+                <button onclick="switchView('dashboard')" id="btnViewDashboard" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition text-slate-500 hover:text-slate-700">
+                    <i class="fas fa-chart-pie mr-1"></i> <span class="hidden md:inline">Dashboard</span>
+                </button>
+            </div>
+
+            <div class="flex items-center bg-slate-100 p-1 rounded-xl whitespace-nowrap">
+                <button onclick="changeMonth(-1)" class="p-1.5 hover:bg-white rounded-lg transition text-slate-500"><i class="fas fa-chevron-left text-[10px]"></i></button>
+                <span id="currentMonthYear" class="px-2 py-1 font-bold text-slate-700 min-w-[110px] text-center text-[10px] sm:text-xs uppercase tracking-widest font-bold">Janeiro 2026</span>
+                <button onclick="changeMonth(1)" class="p-1.5 hover:bg-white rounded-lg transition text-slate-500"><i class="fas fa-chevron-right text-[10px]"></i></button>
+            </div>
+
+            <div class="flex flex-row items-center gap-1.5">
+                <button onclick="openConfigModal()" class="bg-slate-100 text-slate-600 p-2 rounded-xl hover:bg-slate-200 transition" title="Configurações">
+                    <i class="fas fa-cog text-xs"></i>
+                </button>
+                <button onclick="openCampaignModal()" class="bg-slate-800 text-white px-3 py-2 rounded-xl font-bold text-[9px] uppercase transition hover:bg-black whitespace-nowrap">
+                    Estratégias
+                </button>
+                <button onclick="openModal()" class="bg-indigo-600 text-white px-3 py-2 rounded-xl font-bold text-[9px] uppercase transition hover:bg-indigo-700 shadow-md whitespace-nowrap">
+                    <i class="fas fa-plus mr-1"></i> <span class="hidden sm:inline">Novo Post</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- CALENDÁRIO -->
+    <main id="calendarView" class="view-section active flex-1 p-4 overflow-auto">
+        <div class="max-w-[1600px] mx-auto">
+            <div class="mb-4 flex items-center gap-2 bg-white border p-2 rounded-xl overflow-x-auto no-scrollbar shadow-sm">
+                <div id="filterTagsContainer" class="flex gap-1"></div>
+            </div>
+
+            <div class="mb-4 flex flex-wrap gap-3 items-center justify-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm font-bold">
+                <select id="advFilterPlatform" onchange="updateUI()" class="advanced-filter-select font-bold"><option value="all">Plataformas</option></select>
+                <select id="advFilterFormat" onchange="updateUI()" class="advanced-filter-select font-bold"><option value="all">Formatos</option></select>
+                <select id="advFilterObjective" onchange="updateUI()" class="advanced-filter-select font-bold"><option value="all">Objetivos</option></select>
+                <button onclick="resetAdvancedFilters()" class="text-[9px] font-black text-indigo-500 uppercase px-2 font-bold transition hover:text-indigo-700">Limpar</button>
+                <div class="h-4 w-px bg-slate-200 mx-2"></div>
+                <div id="dynamicLegend" class="flex flex-wrap gap-x-4 gap-y-2 items-center text-[10px] font-black text-slate-500 uppercase font-bold"></div>
+            </div>
+
+            <div id="campaignStatusRow" class="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 hidden text-left font-bold"></div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden font-bold">
+                <div class="grid grid-cols-7 bg-slate-50 border-b">
+                    <div class="py-3 text-center text-[11px] font-black text-slate-400 uppercase font-bold">Dom</div>
+                    <div class="py-3 text-center text-[11px] font-black text-slate-400 uppercase font-bold">Seg</div>
+                    <div class="py-3 text-center text-[11px] font-black text-slate-400 uppercase font-bold">Ter</div>
+                    <div class="py-3 text-center text-[11px] font-black text-slate-400 uppercase font-bold">Qua</div>
+                    <div class="py-3 text-center text-[11px] font-black text-slate-400 uppercase font-bold">Qui</div>
+                    <div class="py-3 text-center text-[11px] font-black text-slate-400 uppercase font-bold">Sex</div>
+                    <div class="py-3 text-center text-[11px] font-black text-slate-400 uppercase font-bold">Sáb</div>
+                </div>
+                <div id="calendarBody" class="calendar-grid font-bold"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- DASHBOARD -->
+    <main id="dashboardView" class="view-section flex-1 p-6 overflow-auto bg-slate-50/50">
+        <div class="max-w-[1600px] mx-auto text-left font-bold">
+            <div class="mb-8 flex flex-wrap items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-sm gap-4">
+                <div class="flex items-center gap-4">
+                    <div class="bg-indigo-50 p-2 rounded-xl text-indigo-600 font-bold"><i class="fas fa-chart-line font-bold"></i></div>
+                    <div>
+                        <h2 class="text-sm font-black text-slate-800 uppercase tracking-tight font-bold">Análise Estratégica</h2>
+                        <p id="currentUserDisplay" class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Sincronizado</p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <input type="date" id="dashStartDate" onchange="updateDashboard()" class="dash-filter-input font-bold">
+                    <input type="date" id="dashEndDate" onchange="updateDashboard()" class="dash-filter-input font-bold">
+                    <button onclick="resetDashPeriod()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase font-bold">Limpar</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="dashboard-card border-l-8 border-indigo-500 font-bold">
+                    <p class="text-[10px] font-black text-slate-400 uppercase mb-1 font-bold">Campanhas</p>
+                    <h3 id="statTotalCampaigns" class="text-3xl font-black text-slate-800 font-bold">0</h3>
+                </div>
+                <div class="dashboard-card border-l-8 border-emerald-500 font-bold">
+                    <p class="text-[10px] font-black text-slate-400 uppercase mb-1 font-bold">Concluídas</p>
+                    <h3 id="statCompletedTasks" class="text-3xl font-black text-slate-800 font-bold">0</h3>
+                    <p id="statCompletionRate" class="text-[10px] font-bold text-emerald-600 mt-1">0% taxa</p>
+                </div>
+                <div class="dashboard-card border-l-8 border-amber-500 font-bold">
+                    <p class="text-[10px] font-black text-slate-400 uppercase mb-1 font-bold">No Prazo</p>
+                    <h3 id="statOnTimeRate" class="text-3xl font-black text-slate-800 font-bold">0%</h3>
+                    <p id="statAverageDelay" class="text-[10px] font-bold text-amber-600 mt-1">0 dias médio</p>
+                </div>
+                <div class="dashboard-card border-l-8 border-pink-500 font-bold">
+                    <p class="text-[10px] font-black text-slate-400 uppercase mb-1 font-bold">Próxima</p>
+                    <h3 id="statNextTask" class="text-sm font-black text-slate-800 truncate font-bold">---</h3>
+                    <p id="statNextDate" class="text-[10px] font-bold text-slate-400 mt-1 uppercase">---</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="dashboard-card h-[400px] flex flex-col items-center">
+                    <h3 class="text-xs font-black text-slate-800 uppercase mb-6 tracking-widest font-bold">Plataformas</h3>
+                    <div class="flex-1 w-full"><canvas id="chartPlatforms"></canvas></div>
+                </div>
+                <div class="dashboard-card h-[400px] flex flex-col items-center">
+                    <h3 class="text-xs font-black text-slate-800 uppercase mb-6 tracking-widest font-bold">Objetivos</h3>
+                    <div class="flex-1 w-full"><canvas id="chartObjectives"></canvas></div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- MODAIS -->
+<div id="configModal" class="modal font-bold">
+    <div class="bg-white rounded-3xl w-full max-w-2xl p-6 shadow-2xl m-4 flex flex-col max-h-[90vh] text-left">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-black text-slate-800 uppercase tracking-tighter font-bold">Configurações</h2>
+            <button onclick="closeConfigModal()" class="text-slate-400 hover:text-slate-600 transition font-bold"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="flex border-b mb-4 font-bold">
+            <button onclick="switchConfigTab('platforms')" id="tab-platforms" class="tab-btn active px-4 py-2 font-bold text-xs uppercase font-bold">Plataformas</button>
+            <button onclick="switchConfigTab('formats')" id="tab-formats" class="tab-btn px-4 py-2 font-bold text-xs uppercase font-bold">Formatos</button>
+            <button onclick="switchConfigTab('objectives')" id="tab-objectives" class="tab-btn px-4 py-2 font-bold text-xs uppercase font-bold">Objetivos</button>
+        </div>
+        <div id="config-platforms" class="flex-1 overflow-y-auto pr-2 font-bold">
+            <form id="platformForm" class="bg-slate-50 p-5 rounded-2xl border border-slate-100 mb-6 space-y-4 font-bold">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 font-bold">
+                    <input type="text" id="pltName" required class="w-full border p-2.5 rounded-xl text-sm font-bold" placeholder="Nome">
+                    <input type="color" id="pltColor" class="w-full h-10 border p-1 rounded-xl cursor-pointer" value="#6366f1">
+                </div>
+                <div id="iconPickerGrid" class="grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-40 overflow-y-auto p-2 bg-white rounded-xl font-bold"></div>
+                <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-xs uppercase font-bold">Salvar Plataforma</button>
+            </form>
+            <div id="platformList" class="grid grid-cols-1 sm:grid-cols-2 gap-2 font-bold"></div>
+        </div>
+        <div id="config-formats" class="hidden flex-1 overflow-y-auto pr-2 font-bold">
+            <form id="formatForm" class="flex gap-2 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100 font-bold">
+                <input type="text" id="fmtName" required class="flex-1 border p-2 rounded-xl text-sm font-bold" placeholder="Ex: E-book">
+                <button type="submit" class="bg-indigo-600 text-white px-6 rounded-xl font-bold text-xs uppercase font-bold transition hover:bg-indigo-700">Add</button>
+            </form>
+            <div id="formatList" class="flex flex-wrap gap-2 font-bold font-bold"></div>
+        </div>
+        <div id="config-objectives" class="hidden flex-1 overflow-y-auto pr-2 font-bold">
+            <form id="objectiveForm" class="grid grid-cols-4 gap-2 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100 font-bold">
+                <input type="text" id="objIcon" required class="col-span-1 border p-2 rounded-xl text-sm text-center font-bold" placeholder="❤️">
+                <input type="text" id="objName" required class="col-span-2 border p-2 rounded-xl text-sm font-bold" placeholder="Nome">
+                <button type="submit" class="col-span-1 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase font-bold transition hover:bg-indigo-700">Add</button>
+            </form>
+            <div id="objectiveList" class="space-y-2 font-bold"></div>
+        </div>
+    </div>
+</div>
+
+<div id="campaignModal" class="modal font-bold">
+    <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl m-4 flex flex-col max-h-[90vh] text-left font-bold">
+        <div class="flex justify-between items-center mb-4">
+            <h2 id="campaignModalTitle" class="text-xl font-black text-slate-800 uppercase tracking-tighter font-bold">Gerir Estratégias</h2>
+            <button onclick="closeCampaignModal()" class="text-slate-400 hover:text-slate-600 transition font-bold"><i class="fas fa-times"></i></button>
+        </div>
+        <form id="campaignForm" class="space-y-3 border-b pb-6 mb-6 font-bold">
+            <input type="hidden" id="editingCampaignId">
+            <input type="text" id="campName" required class="w-full border p-2.5 rounded-xl text-sm font-bold" placeholder="Nome da Campanha">
+            <div class="grid grid-cols-2 gap-3 font-bold">
+                <input type="text" id="campGoal" class="w-full border p-2.5 rounded-xl text-sm font-bold" placeholder="Meta">
+                <input type="color" id="campColor" class="w-full h-9 border p-1 rounded-xl cursor-pointer" value="#6366f1">
+            </div>
+            <textarea id="campObs" rows="2" class="w-full border p-2 rounded-xl text-xs font-bold" placeholder="Briefing..."></textarea>
+            <div class="flex gap-2 font-bold">
+                <button type="button" id="cancelEditCampBtn" onclick="resetCampaignForm()" class="hidden flex-1 py-2 font-bold text-xs text-slate-500 uppercase transition hover:bg-slate-50 font-bold">Cancelar</button>
+                <button type="submit" id="submitCampBtn" class="flex-1 bg-indigo-600 text-white py-2 rounded-xl font-bold text-xs uppercase font-bold transition hover:bg-indigo-700">Salvar</button>
+            </div>
+        </form>
+        <div class="flex-1 overflow-y-auto pr-2 space-y-6 font-bold font-bold">
+            <div><h3 class="text-[10px] font-black text-indigo-500 uppercase mb-3 font-bold">Ativas</h3><div id="campaignList" class="space-y-2 font-bold font-bold"></div></div>
+            <div><h3 class="text-[10px] font-black text-slate-400 uppercase mb-3 font-bold">Concluídas</h3><div id="campaignCompletedList" class="space-y-2 opacity-70 font-bold font-bold"></div></div>
+        </div>
+    </div>
+</div>
+
+<div id="eventModal" class="modal font-bold">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl m-4 overflow-y-auto max-h-[95vh] text-left font-bold font-bold">
+        <div class="flex justify-between items-center mb-4 font-bold">
+            <h2 id="modalTitle" class="text-lg font-black text-slate-800 uppercase tracking-tighter font-bold font-bold">Agendar Postagem</h2>
+            <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 transition font-bold"><i class="fas fa-times font-bold"></i></button>
+        </div>
+        <form id="eventForm" class="space-y-3 font-bold">
+            <input type="hidden" id="editingId">
+            <select id="actionCampaignId" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold bg-slate-50 text-indigo-600 outline-none font-bold"></select>
+            <div class="grid grid-cols-2 gap-3 font-bold font-bold">
+                <select id="actionObjective" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold outline-none font-bold font-bold"></select>
+                <select id="actionChannel" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold outline-none font-bold font-bold"></select>
+            </div>
+            <input type="text" id="actionTitle" required class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold font-bold font-bold" placeholder="Título...">
+            <div class="grid grid-cols-2 gap-3 font-bold font-bold">
+                <input type="date" id="actionDate" required class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold font-bold">
+                <select id="actionFormat" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold outline-none font-bold font-bold"></select>
+            </div>
+            <input type="text" id="actionParticipants" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold font-bold" placeholder="Participantes">
+            <textarea id="actionDescription" rows="2" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold font-bold font-bold" placeholder="Notas..."></textarea>
+            <div class="pt-2 flex gap-2 font-bold font-bold font-bold">
+                <button type="button" onclick="closeModal()" class="flex-1 py-3 font-bold text-xs text-slate-500 uppercase transition hover:bg-slate-50 font-bold font-bold">Cancelar</button>
+                <button type="submit" class="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold text-xs shadow-lg font-bold transition hover:bg-indigo-700">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="detailsModal" class="modal font-bold">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl m-4 text-left font-bold font-bold">
+        <div class="flex justify-between items-start mb-4 font-bold">
+            <div id="detailsIcon" class="p-3 rounded-2xl text-white shadow-md font-bold font-bold font-bold"></div>
+            <div class="flex gap-2 font-bold">
+                <button id="detailsEditBtn" class="text-slate-300 hover:text-indigo-600 transition p-1 font-bold font-bold"><i class="fas fa-pen font-bold"></i></button>
+                <button onclick="closeDetails()" class="text-slate-400 hover:text-slate-600 transition p-1 font-bold font-bold font-bold font-bold"><i class="fas fa-times fa-lg font-bold"></i></button>
+            </div>
+        </div>
+        <div class="space-y-4 font-bold">
+            <div class="flex flex-wrap gap-2 mb-2 font-bold">
+                <span id="detailsCampaignBadge" class="px-2 py-0.5 rounded text-[9px] font-black uppercase text-white font-bold font-bold"></span>
+                <span id="detailsFormatBadge" class="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-50 font-bold font-bold"></span>
+                <span id="detailsObjectiveBadge" class="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 font-bold font-bold font-bold"></span>
+            </div>
+            <h2 id="detailsTitle" class="text-xl font-black text-slate-800 uppercase tracking-tighter leading-tight font-bold font-bold"></h2>
+            <p id="detailsDate" class="text-[10px] font-bold text-slate-400 uppercase mt-1 font-bold font-bold font-bold"></p>
+            <div id="detailsParticipantsContainer" class="hidden font-bold">
+                <h3 class="text-[9px] font-black text-slate-400 uppercase mb-1 font-bold font-bold">Participantes:</h3>
+                <div class="flex items-center gap-2 text-sm font-bold text-slate-700 font-bold font-bold font-bold"><i class="fas fa-users text-slate-300 font-bold"></i><span id="detailsParticipants font-bold font-bold"></span></div>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 italic font-bold font-medium font-bold font-bold"><p id="detailsDescription font-bold font-bold" class="text-xs text-slate-600 leading-relaxed font-bold font-bold font-bold"></p></div>
+            <button id="detailsCompleteBtn font-bold font-bold" class="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs uppercase shadow-md font-bold transition hover:bg-indigo-700">Concluir</button>
+        </div>
+    </div>
+</div>
+
+<div id="deleteConfirmModal" class="modal font-bold">
+    <div class="bg-white rounded-3xl w-full max-w-xs p-6 shadow-2xl m-4 text-center font-bold font-bold font-bold">
+        <h3 class="text-lg font-black text-slate-800 uppercase mb-2 font-bold font-bold font-bold">Excluir?</h3>
+        <div class="flex gap-2 mt-6 font-bold font-bold font-bold"><button onclick="closeDeleteConfirm()" class="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-xs uppercase font-bold transition hover:bg-slate-200">Não</button><button id="btnConfirmDelete" class="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold text-xs uppercase font-bold transition hover:bg-red-700">Sim</button></div>
+    </div>
+</div>
+
+<script type="module">
+    // CONFIGURAÇÃO DO FIREBASE (JÁ INSERIDA)
+    const MY_FIREBASE_CONFIG = {
+        apiKey: "AIzaSyDzJdZMunqBPejaIbGq7YeMGQ56zQef-kQ",
+        authDomain: "marketingplannervx2026.firebaseapp.com",
+        projectId: "marketingplannervx2026",
+        storageBucket: "marketingplannervx2026.firebasestorage.app",
+        messagingSenderId: "980090116760",
+        appId: "1:980090116760:web:2afb4a79f412848fca0eed",
+        measurementId: "G-DKQNKZTSP4"
+    };
+
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+    import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+    import { getFirestore, doc, collection, onSnapshot, addDoc, updateDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+    // Inicialização
+    const app = initializeApp(MY_FIREBASE_CONFIG);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const appId = 'marketingplannervx2026';
+
+    // Globais para Colaboração
+    window.marketingActions = [];
+    window.campaigns = [];
+    window.platforms = [];
+    window.formats = [];
+    window.objectives = [];
+    
+    window.currentDate = new Date(2026, 0, 1);
+    window.activeFilters = ['all'];
+    window.currentView = 'calendar';
+    window.selectedPlatformIcon = 'fab fa-instagram';
+
+    const startSync = () => {
+        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'marketingActions'), s => {
+            window.marketingActions = s.docs.map(d => ({ id: d.id, ...d.data() }));
+            window.updateUI();
+            if(document.getElementById('loadingOverlay')) document.getElementById('loadingOverlay').style.display = 'none';
+        }, err => console.error(err));
+
+        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'campaigns'), s => { window.campaigns = s.docs.map(d => ({ id: d.id, ...d.data() })); window.updateUI(); });
+        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'platforms'), s => { window.platforms = s.docs.map(d => ({ id: d.id, ...d.data() })); if (window.platforms.length === 0) seedInitialData(); window.updateUI(); });
+        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'formats'), s => { window.formats = s.docs.map(d => ({ id: d.id, ...d.data() })); window.updateUI(); });
+        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'objectives'), s => { window.objectives = s.docs.map(d => ({ id: d.id, ...d.data() })); window.updateUI(); });
+    };
+
+    async function seedInitialData() {
+        const pCol = collection(db, 'artifacts', appId, 'public', 'data', 'platforms');
+        const fCol = collection(db, 'artifacts', appId, 'public', 'data', 'formats');
+        const oCol = collection(db, 'artifacts', appId, 'public', 'data', 'objectives');
+        await addDoc(pCol, { name: 'Instagram', color: '#ec4899', icon: 'fab fa-instagram' });
+        await addDoc(fCol, { name: 'REELS' });
+        await addDoc(oCol, { name: 'Engajamento', icon: '❤️' });
+    }
+
+    // FUNÇÕES DE INTERFACE GLOBAIS
+    window.switchView = (v) => {
+        window.currentView = v;
+        document.getElementById('calendarView').classList.toggle('active', v === 'calendar');
+        document.getElementById('dashboardView').classList.toggle('active', v === 'dashboard');
+        const cB = document.getElementById('btnViewCalendar'); const dB = document.getElementById('btnViewDashboard');
+        if (v === 'calendar') {
+            cB.className = 'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition active bg-white text-indigo-600 shadow-sm';
+            dB.className = 'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition text-slate-500 hover:text-slate-700';
+        } else {
+            dB.className = 'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition active bg-white text-indigo-600 shadow-sm';
+            cB.className = 'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition text-slate-500 hover:text-slate-700';
+            window.updateDashboard();
+        }
+    };
+
+    window.toggleFilter = (id) => {
+        if (id === 'all') window.activeFilters = ['all'];
+        else {
+            window.activeFilters = window.activeFilters.filter(f => f !== 'all');
+            if (window.activeFilters.includes(id)) { window.activeFilters = window.activeFilters.filter(f => f !== id); if (window.activeFilters.length === 0) window.activeFilters = ['all']; }
+            else window.activeFilters.push(id);
+        }
+        window.updateUI();
+    };
+
+    window.changeMonth = (d) => { window.currentDate.setMonth(window.currentDate.getMonth() + d); window.updateUI(); };
+
+    window.updateUI = () => {
+        renderFilterTags(); renderCampaignSelectors(); renderLegend(); renderAdvancedFilterOptions(); renderCalendar();
+        if (window.currentView === 'dashboard') window.updateDashboard();
+    };
+
+    function renderFilterTags() {
+        const container = document.getElementById('filterTagsContainer'); if(!container) return;
+        let html = `<span onclick="toggleFilter('all')" class="filter-tag px-3 py-1.5 rounded-lg text-[9px] font-black uppercase whitespace-nowrap ${window.activeFilters.includes('all') ? 'active' : 'bg-white text-slate-500'}">Todas</span>`;
+        window.campaigns.forEach(c => {
+            const isActive = window.activeFilters.includes(c.id.toString());
+            html += `<span onclick="toggleFilter('${c.id}')" class="filter-tag px-3 py-1.5 rounded-lg text-[9px] font-black uppercase whitespace-nowrap ${isActive ? 'active' : 'bg-white text-slate-500'}">${c.name}</span>`;
+        });
+        container.innerHTML = html;
+    }
+
+    function renderCalendar() {
+        const year = window.currentDate.getFullYear(); const month = window.currentDate.getMonth();
+        const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+        document.getElementById('currentMonthYear').textContent = `${monthNames[month]} ${year}`;
+        
+        const fP = document.getElementById('advFilterPlatform').value;
+        const fF = document.getElementById('advFilterFormat').value;
+        const fO = document.getElementById('advFilterObjective').value;
+
+        const calendarBody = document.getElementById('calendarBody'); if (!calendarBody) return;
+        const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
+        calendarBody.innerHTML = '';
+        for (let i = 0; i < firstDay; i++) calendarBody.appendChild(Object.assign(document.createElement('div'), {className: 'calendar-day bg-slate-50/30'}));
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const dayEl = document.createElement('div'); dayEl.className = 'calendar-day group flex flex-col font-bold';
+            const isToday = new Date().toLocaleDateString('sv-SE') === dateStr;
+            dayEl.innerHTML = `<div class="flex justify-between items-center mb-1 text-left px-1"><span class="text-[10px] font-black ${isToday ? 'bg-indigo-600 text-white px-1.5 py-0.5 rounded-lg' : 'text-slate-300'}">${day}</span><button onclick="openModal('${dateStr}')" class="opacity-0 group-hover:opacity-100 text-indigo-400 text-[10px] font-bold"><i class="fas fa-plus"></i></button></div><div class="flex-1 overflow-y-auto space-y-[1px]" id="events-${dateStr}"></div>`;
+            
+            let evs = window.marketingActions.filter(e => e.date === dateStr);
+            if (!window.activeFilters.includes('all')) evs = evs.filter(e => window.activeFilters.includes(e.campaignId?.toString()));
+            if (fP !== 'all') evs = evs.filter(e => e.channel === fP);
+            if (fF !== 'all') evs = evs.filter(e => e.format === fF);
+            if (fO !== 'all') evs = evs.filter(e => e.objective === fO);
+
+            const container = dayEl.querySelector(`#events-${dateStr}`);
+            evs.forEach(event => {
+                const tag = document.createElement('div'); const isC = event.status === 'concluido';
+                const plt = window.platforms.find(p => p.id == event.channel) || { color: '#ccc', icon: 'fas fa-rocket' };
+                const obj = window.objectives.find(o => o.id == event.objective) || { icon: '🎯' };
+                const camp = window.campaigns.find(c => c.id == event.campaignId);
+                tag.className = `event-tag ${isC ? 'completed' : ''} ${camp ? 'campaign-indicator' : ''}`;
+                tag.style.borderLeftColor = plt.color;
+                tag.style.backgroundColor = isC ? '#f1f5f9' : plt.color + '15';
+                tag.style.color = isC ? '#94a3b8' : plt.color;
+                if (camp) tag.style.setProperty('--campaign-color', camp.color);
+                tag.innerHTML = `<div class="flex items-center overflow-hidden flex-1 font-bold" onclick="openDetails(event, '${event.id}')"><i class="${plt.icon} mr-1 text-[8px]"></i><span class="truncate flex-1 font-bold">${event.title}</span><span style="font-size: 8px;">${obj.icon}</span></div>`;
+                container.appendChild(tag);
+            });
+            calendarBody.appendChild(dayEl);
+        }
+        renderStatusCards();
+    }
+
+    function renderStatusCards() {
+        const sRow = document.getElementById('campaignStatusRow');
+        if (!sRow) return;
+        if (window.activeFilters.length > 0 && !window.activeFilters.includes('all')) {
+            sRow.classList.remove('hidden'); let cards = '';
+            window.activeFilters.forEach(fId => {
+                const c = window.campaigns.find(c => c.id == fId);
+                if(c) {
+                    const tasks = window.marketingActions.filter(a => a.campaignId == fId);
+                    const done = tasks.filter(a => a.status === 'concluido').length;
+                    const pct = tasks.length > 0 ? Math.round((done/tasks.length)*100) : 0;
+                    cards += `<div class="bg-white p-4 rounded-3xl border-2 shadow-sm border-l-[10px]" style="border-left-color: ${c.color}"><div class="flex justify-between items-start mb-2"><h3 class="text-[11px] font-black text-slate-800 uppercase font-bold">${c.name}</h3><span class="text-[11px] font-black ${pct === 100 ? 'text-green-600' : 'text-indigo-600'} font-bold">${pct}%</span></div><div class="progress-container"><div class="progress-bar" style="width: ${pct}%"></div></div></div>`;
+                }
+            });
+            sRow.innerHTML = cards;
+        } else sRow.classList.add('hidden');
+    }
+
+    window.updateDashboard = () => {
+        const start = document.getElementById('dashStartDate').value;
+        const end = document.getElementById('dashEndDate').value;
+        let fil = window.marketingActions;
+        if (start) fil = fil.filter(a => a.date >= start);
+        if (end) fil = fil.filter(a => a.date <= end);
+        const done = fil.filter(a => a.status === 'concluido');
+        document.getElementById('statTotalCampaigns').innerText = [...new Set(fil.map(a => a.campaignId).filter(id => id))].length;
+        document.getElementById('statCompletedTasks').innerText = done.length;
+        document.getElementById('statCompletionRate').innerText = `${fil.length > 0 ? Math.round((done.length/fil.length)*100) : 0}% taxa`;
+        let onTime = 0; let delay = 0;
+        done.forEach(t => { const p = new Date(t.date + "T00:00"); const a = new Date(t.completionDate); if (a <= p) onTime++; else delay += (a - p) / (1000*60*60*24); });
+        document.getElementById('statOnTimeRate').innerText = `${done.length > 0 ? Math.round((onTime/done.length)*100) : 100}%`;
+        document.getElementById('statAverageDelay').innerText = `${done.length > 0 ? (delay/done.length).toFixed(1) : 0} dias médio`;
+        
+        // Gráficos
+        if (window.chartPltInstance) window.chartPltInstance.destroy();
+        if (window.chartObjInstance) window.chartObjInstance.destroy();
+        window.chartPltInstance = new Chart(document.getElementById('chartPlatforms').getContext('2d'), { type: 'bar', data: { labels: window.platforms.map(p => p.name), datasets: [{ label: 'Posts', data: window.platforms.map(p => fil.filter(a => a.channel === p.id).length), backgroundColor: window.platforms.map(p => p.color + '80'), borderColor: window.platforms.map(p => p.color), borderWidth: 2, borderRadius: 8 }] }, options: { responsive: true, maintainAspectRatio: false } });
+        window.chartObjInstance = new Chart(document.getElementById('chartObjectives').getContext('2d'), { type: 'doughnut', data: { labels: window.objectives.map(o => o.name), datasets: [{ data: window.objectives.map(o => fil.filter(a => a.objective === o.id).length), backgroundColor: ['#f472b6', '#34d399', '#60a5fa', '#fbbf24', '#a78bfa'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } });
+    };
+
+    // Auxiliares
+    window.openConfigModal = () => { document.getElementById('configModal').classList.add('active'); renderIconPicker(); renderConfigLists(); };
+    window.closeConfigModal = () => document.getElementById('configModal').classList.remove('active');
+    window.openCampaignModal = () => { document.getElementById('campaignModal').classList.add('active'); renderCampaignSelectors(); };
+    window.closeCampaignModal = () => document.getElementById('campaignModal').classList.remove('active');
+    window.openModal = (d = '') => { document.getElementById('editingId').value = ''; document.getElementById('eventForm').reset(); document.getElementById('actionDate').value = d || new Date().toLocaleDateString('sv-SE'); document.getElementById('eventModal').classList.add('active'); };
+    window.closeModal = () => document.getElementById('eventModal').classList.remove('active');
+    window.resetAdvancedFilters = () => { document.getElementById('advFilterPlatform').value = 'all'; document.getElementById('advFilterFormat').value = 'all'; document.getElementById('advFilterObjective').value = 'all'; window.updateUI(); };
+    window.resetDashPeriod = () => { document.getElementById('dashStartDate').value = ''; document.getElementById('dashEndDate').value = ''; window.updateDashboard(); };
+
+    function renderAdvancedFilterOptions() {
+        document.getElementById('advFilterPlatform').innerHTML = '<option value="all">Plataformas</option>' + window.platforms.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+        document.getElementById('advFilterFormat').innerHTML = '<option value="all">Formatos</option>' + window.formats.map(f => `<option value="${f.name}">${f.name}</option>`).join('');
+        document.getElementById('advFilterObjective').innerHTML = '<option value="all">Objetivos</option>' + window.objectives.map(o => `<option value="${o.id}">${o.icon} ${o.name}</option>`).join('');
+    }
+
+    function renderCampaignSelectors() {
+        const aC = document.getElementById('actionCampaignId'); const aP = document.getElementById('actionChannel'); const aF = document.getElementById('actionFormat'); const aO = document.getElementById('actionObjective');
+        if(aC) {
+            aC.innerHTML = `<option value="">Ação Isolada</option>` + window.campaigns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            aP.innerHTML = window.platforms.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            aF.innerHTML = window.formats.map(f => `<option value="${f.name}">${f.name}</option>`).join('');
+            aO.innerHTML = window.objectives.map(o => `<option value="${o.id}">${o.icon} ${o.name}</option>`).join('');
+        }
+        const activeList = document.getElementById('campaignList'); const completedList = document.getElementById('campaignCompletedList');
+        if(!activeList) return;
+        const active = []; const done = [];
+        window.campaigns.forEach(c => {
+            const tasks = window.marketingActions.filter(a => a.campaignId == c.id);
+            if (tasks.length > 0 && tasks.every(t => t.status === 'concluido')) done.push(c); else active.push(c);
+        });
+        const cToH = (c, isD) => `<div class="flex items-center justify-between p-3 rounded-2xl border border-slate-100 bg-slate-50/50 group text-left overflow-hidden"><div class="flex items-center gap-3 overflow-hidden"><div class="w-3 h-3 rounded-full shrink-0" style="background-color: ${c.color}"></div><div class="overflow-hidden"><p class="text-xs font-black text-slate-700 truncate uppercase ${isD ? 'line-through opacity-50' : ''}">${c.name}</p></div></div><div class="flex gap-1"><button onclick="editCampaign('${c.id}')" class="p-2 text-indigo-600"><i class="fas fa-pen text-[10px]"></i></button><button onclick="prepareDeleteCampaign('${c.id}')" class="p-2 text-red-500"><i class="fas fa-trash text-[10px]"></i></button></div></div>`;
+        activeList.innerHTML = active.map(c => cToH(c, false)).join('') || '<p class="text-[9px] text-slate-300 italic text-center">Nenhuma ativa.</p>';
+        completedList.innerHTML = done.map(c => cToH(c, true)).join('') || '<p class="text-[9px] text-slate-300 italic text-center">Nenhuma concluída.</p>';
+    }
+
+    function renderLegend() {
+        const l = document.getElementById('dynamicLegend'); if (!l) return;
+        l.innerHTML = window.platforms.slice(0,4).map(p => `<div class="flex items-center gap-1.5"><i class="${p.icon}" style="color: ${p.color}"></i> ${p.name}</div>`).join('') + `<div class="h-4 w-px bg-slate-200 mx-2 hidden md:block"></div>` + window.objectives.map(o => `<span>${o.icon} ${o.name}</span>`).join(' | ');
+    }
+
+    function renderIconPicker() { const grid = document.getElementById('iconPickerGrid'); if (!grid) return; grid.innerHTML = [ 'fab fa-instagram', 'fab fa-tiktok', 'fab fa-whatsapp', 'fab fa-youtube', 'fab fa-facebook-f', 'fas fa-store', 'fas fa-rocket' ].map(icon => `<div class="icon-option ${window.selectedPlatformIcon === icon ? 'selected' : ''}" onclick="selectIcon('${icon}')"><i class="${icon} fa-lg"></i></div>`).join(''); }
+    function renderConfigLists() {
+        document.getElementById('platformList').innerHTML = window.platforms.map(p => `<div class="flex items-center justify-between p-3 bg-white rounded-2xl border border-slate-100 shadow-sm"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-lg flex items-center justify-center text-white" style="background-color: ${p.color}"><i class="${p.icon}"></i></div><span class="text-xs font-black uppercase text-slate-700 font-bold">${p.name}</span></div><button onclick="prepareDeletePlatform('${p.id}')" class="text-slate-300 hover:text-red-500 p-2 transition"><i class="fas fa-trash text-[10px]"></i></button></div>`).join('');
+        document.getElementById('formatList').innerHTML = window.formats.map(f => `<div class="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 font-bold"><span class="text-[10px] font-black text-slate-600 uppercase font-bold">${f.name}</span><button onclick="deleteFormat('${f.name}')" class="text-slate-400 hover:text-red-500 ml-1"><i class="fas fa-times text-[9px]"></i></button></div>`).join('');
+        document.getElementById('objectiveList').innerHTML = window.objectives.map(o => `<div class="flex items-center justify-between p-3 bg-white rounded-2xl border border-slate-100 shadow-sm font-bold"><div class="flex items-center gap-3"><span>${o.icon}</span><span class="text-xs font-black uppercase text-slate-700 font-bold">${o.name}</span></div><button onclick="deleteObjective('${o.id}')" class="text-slate-300 hover:text-red-500 p-2 transition"><i class="fas fa-trash text-[10px]"></i></button></div>`).join('');
+    }
+
+    // CRUD Eventos
+    document.getElementById('eventForm').onsubmit = async (e) => {
+        e.preventDefault(); const id = document.getElementById('editingId').value;
+        const data = { title: document.getElementById('actionTitle').value, date: document.getElementById('actionDate').value, channel: document.getElementById('actionChannel').value, format: document.getElementById('actionFormat').value, description: document.getElementById('actionDescription').value, campaignId: document.getElementById('actionCampaignId').value, participants: document.getElementById('actionParticipants').value, objective: document.getElementById('actionObjective').value };
+        if (id) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'marketingActions', id), data);
+        else await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'marketingActions'), { ...data, status: 'planejado', completionDate: null });
+        window.closeModal();
+    };
+
+    document.getElementById('campaignForm').onsubmit = async (e) => { e.preventDefault(); const id = document.getElementById('editingCampaignId').value; const data = { name: document.getElementById('campName').value, goal: document.getElementById('campGoal').value, color: document.getElementById('campColor').value, obs: document.getElementById('campObs').value }; if (id) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'campaigns', id), data); else await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'campaigns'), data); window.resetCampaignForm(); };
+    document.getElementById('platformForm').onsubmit = async (e) => { e.preventDefault(); await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'platforms'), { name: document.getElementById('pltName').value, color: document.getElementById('pltColor').value, icon: window.selectedPlatformIcon }); document.getElementById('platformForm').reset(); };
+    document.getElementById('formatForm').onsubmit = async (e) => { e.preventDefault(); await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'formats'), { name: document.getElementById('fmtName').value.toUpperCase() }); document.getElementById('formatForm').reset(); };
+    document.getElementById('objectiveForm').onsubmit = async (e) => { e.preventDefault(); await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'objectives'), { icon: document.getElementById('objIcon').value, name: document.getElementById('objName').value }); document.getElementById('objectiveForm').reset(); };
+
+    window.toggleComplete = async (event, id) => { if (event) event.stopPropagation(); const a = window.marketingActions.find(a => a.id === id); const isC = a.status !== 'concluido'; await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'marketingActions', id), { status: isC ? 'concluido' : 'planejado', completionDate: isC ? new Date().toISOString() : null }); };
+    window.prepareDeletePlatform = (id) => { window.idToDelete = id; window.deleteType = 'plt'; document.getElementById('deleteConfirmModal').classList.add('active'); };
+    window.prepareDeleteCampaign = (id) => { window.idToDelete = id; window.deleteType = 'camp'; document.getElementById('deleteConfirmModal').classList.add('active'); };
+    window.confirmDeleteCampaign = async () => {
+        const path = window.deleteType === 'camp' ? 'campaigns' : (window.deleteType === 'plt' ? 'platforms' : 'marketingActions');
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', path, window.idToDelete));
+        window.closeDeleteConfirm();
+    };
+    window.deleteFormat = async (n) => { const d = window.formats.find(f => f.name === n); if (d) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'formats', d.id)); };
+    window.deleteObjective = async (id) => await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'objectives', id));
+    window.selectIcon = (i) => { window.selectedPlatformIcon = i; renderIconPicker(); };
+    window.switchConfigTab = (t) => { document.getElementById('config-platforms').classList.toggle('hidden', t !== 'platforms'); document.getElementById('config-formats').classList.toggle('hidden', t !== 'formats'); document.getElementById('config-objectives').classList.toggle('hidden', t !== 'objectives'); document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById(`tab-${t}`).classList.add('active'); };
+    window.resetCampaignForm = () => { document.getElementById('campaignForm').reset(); document.getElementById('editingCampaignId').value = ''; document.getElementById('campaignModalTitle').innerText = 'Gerir Estratégias'; document.getElementById('submitCampBtn').innerText = 'Salvar'; document.getElementById('cancelEditCampBtn').classList.add('hidden'); };
+    window.editCampaign = (id) => { const c = window.campaigns.find(c => c.id == id); document.getElementById('editingCampaignId').value = id; document.getElementById('campName').value = c.name; document.getElementById('campGoal').value = c.goal; document.getElementById('campColor').value = c.color; document.getElementById('campObs').value = c.obs || ''; document.getElementById('campaignModalTitle').innerText = 'Editar Estratégia'; document.getElementById('submitCampBtn').innerText = 'Atualizar'; document.getElementById('cancelEditCampBtn').classList.remove('hidden'); };
+
+    window.openDetails = (event, id) => {
+        event.stopPropagation(); const a = window.marketingActions.find(a => a.id === id); if (!a) return;
+        const c = window.campaigns.find(c => c.id == a.campaignId); const plt = window.platforms.find(p => p.id == a.channel) || { color: '#ccc', icon: 'fas fa-rocket' }; const obj = window.objectives.find(o => o.id == a.objective) || { name: 'Geral', icon: '🎯' };
+        document.getElementById('detailsTitle').innerText = a.title; document.getElementById('detailsDescription').innerText = a.description || '...'; document.getElementById('detailsFormatBadge').innerText = a.format; document.getElementById('detailsDate').innerText = new Date(a.date + "T00:00").toLocaleDateString('pt-BR'); document.getElementById('detailsObjectiveBadge').innerText = `${obj.icon} ${obj.name}`;
+        if (a.participants) { document.getElementById('detailsParticipants').innerText = a.participants; document.getElementById('detailsParticipantsContainer').classList.remove('hidden'); } else document.getElementById('detailsParticipantsContainer').classList.add('hidden');
+        if (c) { document.getElementById('detailsCampaignBadge').innerText = c.name; document.getElementById('detailsCampaignBadge').style.backgroundColor = c.color; document.getElementById('detailsCampaignBadge').classList.remove('hidden'); } else document.getElementById('detailsCampaignBadge').classList.add('hidden');
+        document.getElementById('detailsIcon').style.backgroundColor = plt.color; document.getElementById('detailsIcon').innerHTML = `<i class="${plt.icon} fa-2x"></i>`;
+        document.getElementById('detailsEditBtn').onclick = () => { window.closeDetails(); window.openEditAction(a); };
+        document.getElementById('detailsCompleteBtn').innerText = a.status === 'concluido' ? 'Reabrir' : 'Concluir';
+        document.getElementById('detailsCompleteBtn').onclick = () => { window.toggleComplete(null, a.id); window.closeDetails(); };
+        document.getElementById('detailsModal').classList.add('active');
+    };
+
+    window.openEditAction = (a) => {
+        document.getElementById('editingId').value = a.id; document.getElementById('actionTitle').value = a.title; document.getElementById('actionDate').value = a.date; document.getElementById('actionChannel').value = a.channel; document.getElementById('actionFormat').value = a.format; document.getElementById('actionDescription').value = a.description || ''; document.getElementById('actionCampaignId').value = a.campaignId || ''; document.getElementById('actionParticipants').value = a.participants || ''; document.getElementById('actionObjective').value = a.objective || '';
+        document.getElementById('eventModal').classList.add('active');
+    };
+
+    window.closeDetails = () => document.getElementById('detailsModal').classList.remove('active');
+    window.closeDeleteConfirm = () => document.getElementById('deleteConfirmModal').classList.remove('active');
+
+    // Inicialização do Auth e Sincronização
+    onAuthStateChanged(auth, user => { if (user) { window.currentUser = user; document.getElementById('currentUserDisplay').innerText = `ID: ${user.uid.substring(0,8)}`; startSync(); } else { signInAnonymously(auth); } });
+
+</script>
+
+</body>
+</html>
